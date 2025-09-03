@@ -6,7 +6,7 @@
    <groupId>com.javatpoint</groupId>
    <artifactId>SimpleCustomerApp</artifactId>
    <packaging>war</packaging>
-   <version>${BUILD_NUMBER}-SNAPSHOT</version>
+   <version>${BUILD_NUMBER}</version>
    <name>SimpleCustomerApp</name>
    <url>http://maven.apache.org</url>
    <properties>
