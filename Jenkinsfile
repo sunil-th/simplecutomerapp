@@ -1,4 +1,3 @@
-once check this 
 pipeline {
     agent any
     tools {
