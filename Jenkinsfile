@@ -1,3 +1,4 @@
+once check this 
 pipeline {
     agent any
     tools {
@@ -14,9 +15,7 @@ pipeline {
         // Slack details (already configured in Jenkins → Configure System → Slack)
         SLACK_CHANNEL = "#jenkins-integration"
 
-        // Tomcat details
-        TOMCAT_SERVER = "ec2-user@3.89.121.33"   // ✅ no angle brackets
-        TOMCAT_PATH = "/opt/tomcat/webapps"      // Tomcat webapps folder
+        
     }
     stages {
         stage("clone code") {
@@ -92,13 +91,20 @@ pipeline {
             }
         }
 
-        stage("Deploy to Tomcat") {
+stage("Deploy to Tomcat") {
             steps {
-                script {
-                    echo "Deploying WAR to Tomcat..."
-                    sshagent(['tomcat']) {   // ✅ replace 'tomcat' with your Jenkins credentialsId
+                withCredentials([usernamePassword(credentialsId: 'tomcat', usernameVariable: 'TOMCAT_USER', passwordVariable: 'TOMCAT_PASS')]) {
+                    script {
+                        // Find the WAR file built by Maven
+                        def warFile = sh(script: "ls target/*.war | head -n 1", returnStdout: true).trim()
+                        def warName = sh(script: "basename ${warFile} .war | tr '[:upper:]' '[:lower:]'", returnStdout: true).trim()
+
+                        echo "Deploying ${warFile} to Tomcat at context path /${warName}..."
+
                         sh """
-                            scp -o StrictHostKeyChecking=no target/*.war ${TOMCAT_SERVER}:${TOMCAT_PATH}/
+                            curl -u $TOMCAT_USER:$TOMCAT_PASS \\
+                                 -T ${warFile} \\
+                                 "http://3.89.121.33:8080/manager/text/deploy?path=/${warName}&update=true"
                         """
                     }
                 }
