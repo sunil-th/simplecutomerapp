@@ -78,18 +78,7 @@ pipeline {
             }
         }
 
-        stage("Slack Notification") {
-            steps {
-                script {
-                    slackSend(
-                        channel: "${SLACK_CHANNEL}",
-                        color: "#36a64f",
-                        message: "✅ Build & Nexus Upload Successful for Job: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
-                    )
-                }
-            }
-        }
-
+       
 stage("Deploy to Tomcat") {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'tomcat', usernameVariable: 'TOMCAT_USER', passwordVariable: 'TOMCAT_PASS')]) {
@@ -110,15 +99,15 @@ stage("Deploy to Tomcat") {
             }
         }
     }
-    post {
-        failure {
-            script {
-                slackSend(
-                    channel: "${SLACK_CHANNEL}",
-                    color: "#ff0000",
-                    message: "❌ Build Failed for Job: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
-                )
+ stage("Slack Notification") {
+            steps {
+                script {
+                    slackSend(
+                        channel: "${SLACK_CHANNEL}",
+                        color: "#36a64f",
+                        message: "Declarative pipeline for *Simple Customer App* has been successfully! deployed in Tomcat ✅ by SNL for Job: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
+                    )
+                }
             }
         }
-    }
 }
