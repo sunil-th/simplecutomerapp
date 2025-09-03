@@ -109,7 +109,7 @@ pipeline {
         failure {
             script {
                 slackSend(
-                    channel: "$#jenkins-integration",
+                    channel: "${SLACK_CHANNEL}",
                     color: "#ff0000",
                     message: "❌ Build Failed for Job: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
                 )
