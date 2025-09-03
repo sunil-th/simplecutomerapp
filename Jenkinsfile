@@ -1,8 +1,10 @@
 pipeline {
     agent any
+
     tools {
-        maven "MVN_HOME"
+        maven 'MVN_HOME'
     }
+
     environment {
         NEXUS_VERSION = "nexus3"
         NEXUS_PROTOCOL = "http"
@@ -13,27 +15,22 @@ pipeline {
 
         // Slack details (already configured in Jenkins → Configure System → Slack)
         SLACK_CHANNEL = "#jenkins-integration"
-
-        
     }
+
     stages {
         stage("clone code") {
             steps {
-                script {
-                    git 'https://github.com/sunil-th/simplecutomerapp.git'
-                }
+                git 'https://github.com/sunil-th/simplecutomerapp.git'
             }
         }
 
         stage("mvn build") {
             steps {
-                script {
-                    sh 'mvn -Dmaven.test.failure.ignore=true clean install'
-                }
+                sh 'mvn -Dmaven.test.failure.ignore=true clean install'
             }
         }
 
-        stage('SonarCloud') {
+        stage("SonarCloud") {
             steps {
                 withSonarQubeEnv('sonarqube-server') {
                     sh '''$SCANNER_HOME/bin/sonar-scanner \
@@ -57,6 +54,7 @@ pipeline {
                     echo "${filesByGlob[0].name} ${filesByGlob[0].path}"
                     artifactPath = filesByGlob[0].path
                     artifactExists = fileExists artifactPath
+
                     if (artifactExists) {
                         nexusArtifactUploader(
                             nexusVersion: NEXUS_VERSION,
@@ -78,8 +76,7 @@ pipeline {
             }
         }
 
-       
-stage("Deploy to Tomcat") {
+        stage("Deploy to Tomcat") {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'tomcat', usernameVariable: 'TOMCAT_USER', passwordVariable: 'TOMCAT_PASS')]) {
                     script {
@@ -98,16 +95,15 @@ stage("Deploy to Tomcat") {
                 }
             }
         }
-    }
- stage("Slack Notification") {
+
+        stage("Slack Notification") {
             steps {
-                script {
-                    slackSend(
-                        channel: "${SLACK_CHANNEL}",
-                        color: "#36a64f",
-                        message: "Declarative pipeline for *Simple Customer App* has been successfully! deployed in Tomcat ✅ by SNL for Job: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
-                    )
-                }
+                slackSend(
+                    channel: "${SLACK_CHANNEL}",
+                    color: "#36a64f",
+                    message: "Declarative pipeline for *Simple Customer App* has been successfully deployed in Tomcat ✅ by SNL for Job: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
+                )
             }
         }
+    }
 }
