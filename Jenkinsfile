@@ -1,97 +1,118 @@
 pipeline {
     agent any
     tools {
-        // Note: this should match with the tool name configured in your jenkins instance (JENKINS_URL/configureTools/)
         maven "MVN_HOME"
-        
     }
-	 environment {
-        // This can be nexus3 or nexus2
+    environment {
         NEXUS_VERSION = "nexus3"
-        // This can be http or https
         NEXUS_PROTOCOL = "http"
-        // Where your Nexus is running
         NEXUS_URL = "3.83.214.6:8081"
-        // Repository where we will upload the artifact
         NEXUS_REPOSITORY = "pipe-snapshots"
-        // Jenkins credential id to authenticate to Nexus OSS
         NEXUS_CREDENTIAL_ID = "Nexus-server"
-	SCANNER_HOME = tool 'sonar_scanner'
+        SCANNER_HOME = tool 'sonar_scanner'
+
+        // Slack details (already configured in Jenkins → Configure System → Slack)
+        SLACK_CHANNEL = "#jenkins-integration"
+
+        // Tomcat details
+        TOMCAT_SERVER = "ec2-user@3.89.121.33"   // ✅ no angle brackets
+        TOMCAT_PATH = "/opt/tomcat/webapps"      // Tomcat webapps folder
     }
     stages {
         stage("clone code") {
             steps {
                 script {
-                    // Let's clone the source
-                    git 'https://github.com/sunil-th/simplecutomerapp.git';
+                    git 'https://github.com/sunil-th/simplecutomerapp.git'
                 }
             }
         }
+
         stage("mvn build") {
             steps {
                 script {
-                    // If you are using Windows then you should use "bat" step
-                    // Since unit testing is out of the scope we skip them
                     sh 'mvn -Dmaven.test.failure.ignore=true clean install'
                 }
             }
         }
-	stage('SonarCloud') {
+
+        stage('SonarCloud') {
             steps {
                 withSonarQubeEnv('sonarqube-server') {
-				sh '$SCANNER_HOME/bin/sonar-scanner \
-				-Dsonar.projectKey=Ncodeit \
-				-Dsonar.projectName=Ncodeit \
-				-Dsonar.projectVersion=2.0 \
-				-Dsonar.sources=/var/lib/jenkins/workspace/$JOB_NAME/src/ \
-				-Dsonar.binaries=target/classes/com/visualpathit/account/controller/ \
-				-Dsonar.junit.reportsPath=target/surefire-reports \
-				-Dsonar.jacoco.reportPath=target/jacoco.exec \
-				-Dsonar.java.binaries=src/com/room/sample '
-				
-		     }
-		}
-	    }
+                    sh '''$SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectKey=Ncodeit \
+                        -Dsonar.projectName=Ncodeit \
+                        -Dsonar.projectVersion=2.0 \
+                        -Dsonar.sources=/var/lib/jenkins/workspace/$JOB_NAME/src/ \
+                        -Dsonar.binaries=target/classes/com/visualpathit/account/controller/ \
+                        -Dsonar.junit.reportsPath=target/surefire-reports \
+                        -Dsonar.jacoco.reportPath=target/jacoco.exec \
+                        -Dsonar.java.binaries=src/com/room/sample '''
+                }
+            }
+        }
+
         stage("publish to nexus") {
             steps {
                 script {
-                    // Read POM xml file using 'readMavenPom' step , this step 'readMavenPom' is included in: https://plugins.jenkins.io/pipeline-utility-steps
-                    pom = readMavenPom file: "pom.xml";
-                    // Find built artifact under target folder
-                    filesByGlob = findFiles(glob: "target/*.${pom.packaging}");
-                    // Print some info from the artifact found
-                    echo "${filesByGlob[0].name} ${filesByGlob[0].path} ${filesByGlob[0].directory} ${filesByGlob[0].length} ${filesByGlob[0].lastModified}"
-                    // Extract the path from the File found
-                    artifactPath = filesByGlob[0].path;
-                    // Assign to a boolean response verifying If the artifact name exists
-                    artifactExists = fileExists artifactPath;
-                    if(artifactExists) {
-                        echo "*** File: ${artifactPath}, group: ${pom.groupId}, packaging: ${pom.packaging}, version ${pom.version}";
+                    pom = readMavenPom file: "pom.xml"
+                    filesByGlob = findFiles(glob: "target/*.${pom.packaging}")
+                    echo "${filesByGlob[0].name} ${filesByGlob[0].path}"
+                    artifactPath = filesByGlob[0].path
+                    artifactExists = fileExists artifactPath
+                    if (artifactExists) {
                         nexusArtifactUploader(
                             nexusVersion: NEXUS_VERSION,
                             protocol: NEXUS_PROTOCOL,
                             nexusUrl: NEXUS_URL,
-			    groupId: pom.groupId,
+                            groupId: pom.groupId,
                             version: pom.version,
                             repository: NEXUS_REPOSITORY,
                             credentialsId: NEXUS_CREDENTIAL_ID,
                             artifacts: [
-                                // Artifact generated such as .jar, .ear and .war files.
-                                [artifactId: pom.artifactId,
-                                classifier: '',
-                                file: artifactPath,
-                                type: pom.packaging],
-                                // Lets upload the pom.xml file for additional information for Transitive dependencies
-                                [artifactId: pom.artifactId,
-                                classifier: '',
-                                file: "pom.xml",
-                                type: "pom"]
+                                [artifactId: pom.artifactId, classifier: '', file: artifactPath, type: pom.packaging],
+                                [artifactId: pom.artifactId, classifier: '', file: "pom.xml", type: "pom"]
                             ]
-                        );
+                        )
                     } else {
-                        error "*** File: ${artifactPath}, could not be found";
+                        error "*** File: ${artifactPath}, could not be found"
                     }
                 }
+            }
+        }
+
+        stage("Slack Notification") {
+            steps {
+                script {
+                    slackSend(
+                        channel: "${SLACK_CHANNEL}",
+                        color: "#36a64f",
+                        message: "✅ Build & Nexus Upload Successful for Job: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
+                    )
+                }
+            }
+        }
+
+        stage("Deploy to Tomcat") {
+            steps {
+                script {
+                    echo "Deploying WAR to Tomcat..."
+                    sshagent(['tomcat']) {   // ✅ replace 'tomcat' with your Jenkins credentialsId
+                        sh """
+                            scp -o StrictHostKeyChecking=no target/*.war ${TOMCAT_SERVER}:${TOMCAT_PATH}/
+                        """
+                    }
+                }
+            }
+        }
+    }
+    post {
+        failure {
+            script {
+                slackSend(
+                    channel: "$#jenkins-integration",
+                    color: "#ff0000",
+                    message: "❌ Build Failed for Job: ${env.JOB_NAME} [${env.BUILD_NUMBER}]"
+                )
             }
         }
     }
