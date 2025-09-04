@@ -6,7 +6,7 @@
 
   <welcome-file-list>
 
-    <welcome-file>Welcome.jsp</welcome-file>
+    <welcome-file>Customer.jsp</welcome-file>
 
   </welcome-file-list>
 
