@@ -82,15 +82,15 @@ pipeline {
                     script {
                         // Find the WAR file built by Maven
                         def warFile = sh(script: "ls target/*.war | head -n 1", returnStdout: true).trim()
-                        // def warName = sh(script: "basename ${warFile} .war | tr '[:upper:]' '[:lower:]'", returnStdout: true).trim()
+                        def warName = sh(script: "basename ${warFile} .war | tr '[:upper:]' '[:lower:]'", returnStdout: true).trim()
 
                         echo "Deploying ${warFile} to Tomcat at context path /${warName}..."
 
                         sh """
                             curl -u $TOMCAT_USER:$TOMCAT_PASS \\
                                  -T ${warFile} \\
-                                 // "http://3.89.121.33:8080/manager/text/deploy?path=/${warName}&update=true"
-                                  "http://3.89.121.33:8080/manager/text/deploy?path=/simplecustomerapp&update=true"
+                                 "http://3.89.121.33:8080/manager/text/deploy?path=/${warName}&update=true"
+        
                         """
                     }
                 }
